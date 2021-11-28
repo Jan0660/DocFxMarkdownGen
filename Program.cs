@@ -78,16 +78,16 @@ string Link(string uid, bool nameOnly = false, bool indexLink = false)
     var dots = indexLink ? "./" : "../";
     var extension = indexLink ? ".md" : "";
     if (reference.Type is "Class" or "Interface" or "Enum" or "Struct")
-        return $"[{name}]({dots}{reference.Namespace}/{reference.Name}{extension})";
+        return $"[{name}]({FileEscape($"{dots}{reference.Namespace}/{reference.Name}{extension}")})";
     else if (reference.Type is "Namespace")
-        return $"[{name}]({dots}{reference.Name}/{reference.Name}{extension})";
+        return $"[{name}]({FileEscape($"{dots}{reference.Name}/{reference.Name}{extension}")})";
     else
     {
         var parent = items.FirstOrDefault(i => i.Uid == reference.Parent);
         if (parent == null)
             return $"`{uid}`";
         return
-            $"[{name}]({dots}{reference.Namespace}/{parent.Name}{extension}#{reference.Name.ToLower().Replace("(", "").Replace(")", "")})";
+            $"[{name}]({FileEscape($"{dots}{reference.Namespace}/{parent.Name}{extension}")}#{reference.Name.ToLower().Replace("(", "").Replace(")", "")})";
     }
 }
 
@@ -110,6 +110,10 @@ string? GetSummary(string? summary)
 
 string? HtmlEscape(string? str)
     => str?.Replace("<", "&lt;")?.Replace(">", "&gt;");
+
+string? FileEscape(string? str)
+    => str?.Replace("<", "`")?.Replace(">", "`");
+
 
 string SourceLink(Item item)
     =>
