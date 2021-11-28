@@ -6,3 +6,9 @@ riderModule.iml
 .idea/
 .vscode/
 /config.yaml
+
+/examples/*/.docusaurus
+/examples/*/node_modules
+/examples/*/docs/api
+/examples/*/api
+.vercel

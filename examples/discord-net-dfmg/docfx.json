@@ -1,0 +1,18 @@
+{
+    "metadata": [
+      {
+        "src": [
+          {
+            "files": [
+              "*/*.csproj"
+            ],
+            "src": "./Discord.Net/src"
+          }
+        ],
+        "dest": "api",
+        "disableGitFeatures": false,
+        "disableDefaultFilter": false
+      }
+    ]
+  }
+  

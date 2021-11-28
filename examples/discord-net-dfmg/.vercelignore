@@ -1,0 +1,5 @@
+.docusaurus
+/api/
+node_modules
+/Discord.Net/
+!/docs/api/
