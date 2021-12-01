@@ -18,3 +18,5 @@ yamlPath: /home/jan/gen/api
 
 - [`examples/discord-net-dfmg`](https://discord-net-dfmg.jan0660.dev/api): example site done on [Discord.Net](https://github.com/discord-net/Discord.Net)
 - [Log73](https://latest-log73.jan0660.dev/api)
+
+This project is still very new, if you find an issue in the markdown generated, please open an issue!

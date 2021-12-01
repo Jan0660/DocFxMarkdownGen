@@ -1,9 +1,9 @@
 ﻿using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using Log73;
 using static Log73.Console;
-using Console = Log73.Console;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -14,7 +14,7 @@ using YamlDotNet.Serialization.NamingConventions;
 Options.UseAnsi = false;
 if (Environment.GetEnvironmentVariable("JAN_DEBUG") == "1")
     Options.LogLevel = LogLevel.Debug;
-WriteLine("DocFxMarkdownGen running...");
+WriteLine($"DocFxMarkdownGen v{Assembly.GetExecutingAssembly().GetName().Version} running...");
 
 var xrefRegex = new Regex("<xref href=\"(.+?)\" data-throw-if-not-resolved=\"false\"></xref>", RegexOptions.Compiled);
 var langwordXrefRegex =
