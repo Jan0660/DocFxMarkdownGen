@@ -14,11 +14,13 @@ using YamlDotNet.Serialization.NamingConventions;
 Options.UseAnsi = false;
 if (Environment.GetEnvironmentVariable("JAN_DEBUG") == "1")
     Options.LogLevel = LogLevel.Debug;
-Console.WriteLine("DocFxMarkdownGen running...");
+WriteLine("DocFxMarkdownGen running...");
 
 var xrefRegex = new Regex("<xref href=\"(.+?)\" data-throw-if-not-resolved=\"false\"></xref>", RegexOptions.Compiled);
 var langwordXrefRegex =
     new Regex("<xref uid=\"langword_csharp_.+?\" name=\"(.+?)\" href=\"\"></xref>", RegexOptions.Compiled);
+var codeRegex = new Regex("<code>(.+?)</code>", RegexOptions.Compiled);
+var linkRegex = new Regex("<a href=\"(.+?)\">(.+?)</a>", RegexOptions.Compiled);
 var yamlDeserializer = new DeserializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance)
     .IgnoreUnmatchedProperties().Build();
 var config = yamlDeserializer.Deserialize<Config>(await File.ReadAllTextAsync("./config.yaml"));
@@ -30,6 +32,7 @@ var stopwatch = Stopwatch.StartNew();
 List<Item> items = new();
 
 #region read all yaml and create directory structure
+
 await Parallel.ForEachAsync(Directory.GetFiles(config.YamlPath, "*.yml"), async (file, _) =>
 {
     if (file.EndsWith("toc.yml"))
@@ -95,15 +98,14 @@ string? GetSummary(string? summary)
 {
     if (summary == null)
         return null;
-    if (summary.Contains("xref"))
+    summary = xrefRegex.Replace(summary, match =>
     {
-        summary = xrefRegex.Replace(summary, match =>
-        {
-            var uid = match.Groups[1].Value;
-            return Link(uid);
-        });
-        summary = langwordXrefRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
-    }
+        var uid = match.Groups[1].Value;
+        return Link(uid);
+    });
+    summary = langwordXrefRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
+    summary = codeRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
+    summary = linkRegex.Replace(summary, match => $"[{match.Groups[2].Value}]({match.Groups[1].Value})");
 
     return HtmlEscape(summary);
 }
@@ -187,8 +189,10 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 {
                     str.AppendLine("##### Returns");
                     if (method.Syntax.Return?.Description != null)
-                        str.AppendLine(HtmlEscape(Link(method.Syntax.Return.Type)?.Trim().Replace('{', '<').Replace('}', '>')) + ": " +
-                                       method.Syntax.Return.Description);
+                        str.AppendLine(
+                            HtmlEscape(Link(method.Syntax.Return.Type)?.Trim().Replace('{', '<').Replace('}', '>')) +
+                            ": " +
+                            method.Syntax.Return.Description);
                     else
                         str.AppendLine(Link(method.Syntax.Return.Type)?.Trim());
                 }
@@ -274,7 +278,10 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 // todo: wont link if other args are present
                 var method = items.FirstOrDefault(i =>
                     ((i.Syntax?.Parameters?.Any() ?? false)
-                        ? (i.Syntax.Parameters[0].Type + '.' + i.FullName[..(i.FullName.IndexOf('(') == -1 ? i.FullName.Length : i.FullName.IndexOf('('))] == extMethod)
+                        ? (i.Syntax.Parameters[0].Type + '.' +
+                           i.FullName
+                               [..(i.FullName.IndexOf('(') == -1 ? i.FullName.Length : i.FullName.IndexOf('('))] ==
+                           extMethod)
                         : false));
                 if (method == null)
                     str.AppendLine($"* {extMethod}");
@@ -332,7 +339,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
     str.AppendLine("## Namespaces");
     foreach (var @namespace in items.Where(i => i.Type == "Namespace").OrderBy(i => i.Name))
         str.AppendLine($"* {HtmlEscape(Link(@namespace.Uid, indexLink: true))}");
-    await File.WriteAllTextAsync(Path.Join(config.OutputPath,  $"index.md"), str.ToString());
+    await File.WriteAllTextAsync(Path.Join(config.OutputPath, $"index.md"), str.ToString());
 }
 Info($"Markdown finished in {stopwatch.ElapsedMilliseconds}ms.");
 
