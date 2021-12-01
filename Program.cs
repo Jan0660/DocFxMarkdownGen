@@ -204,19 +204,17 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                     {
                         str.AppendLine("| Type | Name | Description |");
                         str.AppendLine("|:--- |:--- |:--- |");
-                        if (method.Syntax.Parameters != null)
-                            foreach (var parameter in method.Syntax.Parameters)
-                                str.AppendLine(
-                                    $"| {HtmlEscape(Link(parameter.Type.Replace('{', '<').Replace('}', '>')))} | *{parameter.Id}* | {parameter.Description} |");
+                        foreach (var parameter in method.Syntax.Parameters)
+                            str.AppendLine(
+                                $"| {HtmlEscape(Link(parameter.Type.Replace('{', '<').Replace('}', '>')))} | *{parameter.Id}* | {parameter.Description} |");
                     }
                     else
                     {
                         str.AppendLine("| Type | Name |");
                         str.AppendLine("|:--- |:--- |");
-                        if (method.Syntax.Parameters != null)
-                            foreach (var parameter in method.Syntax.Parameters)
-                                str.AppendLine(
-                                    $"| {HtmlEscape(Link(parameter.Type.Replace('{', '<').Replace('}', '>')))} | *{parameter.Id}* |");
+                        foreach (var parameter in method.Syntax.Parameters)
+                            str.AppendLine(
+                                $"| {HtmlEscape(Link(parameter.Type.Replace('{', '<').Replace('}', '>')))} | *{parameter.Id}* |");
                     }
 
                     str.AppendLine();
@@ -272,7 +270,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
         if ((item.ExtensionMethods?.Length ?? 0) != 0)
         {
             str.AppendLine("## Extension Methods");
-            foreach (var extMethod in item.ExtensionMethods)
+            foreach (var extMethod in item.ExtensionMethods!)
             {
                 // ReSharper disable once SimplifyConditionalTernaryExpression
                 // todo: wont link if other args are present
