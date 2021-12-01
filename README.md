@@ -2,6 +2,12 @@
 
 Generates documentation for a .NET library in Markdown intended for [Docusaurus](https://docusaurus.io/) using [docfx](https://github.com/dotnet/docfx).
 
+## Installation
+
+```sh
+dotnet tool install -g DocFxMarkdownGen
+```
+
 ## Usage
 
 `config.yaml`:

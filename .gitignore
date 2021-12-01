@@ -6,6 +6,8 @@ riderModule.iml
 .idea/
 .vscode/
 /config.yaml
+/nupkg
+/.config/dotnet-tools.json
 
 /examples/*/.docusaurus
 /examples/*/node_modules
