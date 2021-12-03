@@ -6,6 +6,7 @@ Generates documentation for a .NET library in Markdown intended for [Docusaurus]
 
 ```sh
 dotnet tool install -g DocFxMarkdownGen
+# now installed as "dfmg", use with "dotnet dfmg" or just "dfmg" if tools are in PATH
 ```
 
 ## Usage
