@@ -14,7 +14,10 @@ using YamlDotNet.Serialization.NamingConventions;
 Options.UseAnsi = false;
 if (Environment.GetEnvironmentVariable("JAN_DEBUG") == "1")
     Options.LogLevel = LogLevel.Debug;
-WriteLine($"DocFxMarkdownGen v{Assembly.GetExecutingAssembly().GetName().Version} running...");
+var versionString = Assembly.GetEntryAssembly()?
+    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+    .InformationalVersion ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString();
+WriteLine($"DocFxMarkdownGen v{versionString} running...");
 
 var xrefRegex = new Regex("<xref href=\"(.+?)\" data-throw-if-not-resolved=\"false\"></xref>", RegexOptions.Compiled);
 var langwordXrefRegex =
@@ -338,6 +341,9 @@ await Parallel.ForEachAsync(items, async (item, _) =>
     str.AppendLine("## Namespaces");
     foreach (var @namespace in items.Where(i => i.Type == "Namespace").OrderBy(i => i.Name))
         str.AppendLine($"* {HtmlEscape(Link(@namespace.Uid, indexLink: true))}");
+    str.AppendLine();
+    str.AppendLine("---");
+    str.AppendLine($"Generated using [DocFxMarkdownGen](https://github.com/Jan0660/DocFxMarkdownGen) v{versionString}.");
     await File.WriteAllTextAsync(Path.Join(config.OutputPath, $"index.md"), str.ToString());
 }
 Info($"Markdown finished in {stopwatch.ElapsedMilliseconds}ms.");
