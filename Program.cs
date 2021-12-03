@@ -188,13 +188,11 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 if (!string.IsNullOrWhiteSpace(method.Syntax.Return?.Type))
                 {
                     str.AppendLine("##### Returns");
-                    if (method.Syntax.Return?.Description != null)
-                        str.AppendLine(
-                            HtmlEscape(Link(method.Syntax.Return.Type)?.Trim().Replace('{', '<').Replace('}', '>')) +
-                            ": " +
-                            method.Syntax.Return.Description);
+                    str.Append(Link(method.Syntax.Return.Type)?.Trim().Replace('{', '<').Replace('}', '>'));
+                    if (string.IsNullOrWhiteSpace(method.Syntax.Return?.Description))
+                        str.AppendLine();
                     else
-                        str.AppendLine(Link(method.Syntax.Return.Type)?.Trim());
+                        str.Append(": " + method.Syntax.Return.Description);
                 }
 
                 if ((method.Syntax.Parameters?.Length ?? 0) != 0)
@@ -258,10 +256,13 @@ await Parallel.ForEachAsync(items, async (item, _) =>
         // Implements
         if (item.Implements?.Any() ?? false)
         {
+            str.AppendLine();
             str.AppendLine("## Implements");
+            str.AppendLine();
             foreach (var implemented in item.Implements)
             {
-                str.AppendLine($"* {Link(implemented)}");
+                var link = Link(implemented);
+                str.AppendLine($"* {link.Replace('{', '<').Replace('}', '>')}");
             }
         }
 
