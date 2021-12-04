@@ -79,21 +79,21 @@ string Link(string uid, bool nameOnly = false, bool indexLink = false)
     var reference = items.FirstOrDefault(i => i.Uid == uid);
     if (reference == null)
         // todo: try to resolve to msdn links if System namespace maybe
-        return $"`{uid}`";
+        return $"`{uid.Replace('{', '<').Replace('}', '>')}`";
     var name = nameOnly ? reference.Name : reference.FullName;
     var dots = indexLink ? "./" : "../";
     var extension = indexLink ? ".md" : "";
     if (reference.Type is "Class" or "Interface" or "Enum" or "Struct")
-        return $"[{name}]({FileEscape($"{dots}{reference.Namespace}/{reference.Name}{extension}")})";
+        return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Namespace}/{reference.Name}{extension}")})";
     else if (reference.Type is "Namespace")
-        return $"[{name}]({FileEscape($"{dots}{reference.Name}/{reference.Name}{extension}")})";
+        return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Name}/{reference.Name}{extension}")})";
     else
     {
         var parent = items.FirstOrDefault(i => i.Uid == reference.Parent);
         if (parent == null)
-            return $"`{uid}`";
+            return $"`{uid.Replace('{', '<').Replace('}', '>')}`";
         return
-            $"[{name}]({FileEscape($"{dots}{reference.Namespace}/{parent.Name}{extension}")}#{reference.Name.ToLower().Replace("(", "").Replace(")", "")})";
+            $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Namespace}/{parent.Name}{extension}")}#{reference.Name.ToLower().Replace("(", "").Replace(")", "")})";
     }
 }
 
@@ -190,24 +190,28 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 Declaration(str, method);
                 if (!string.IsNullOrWhiteSpace(method.Syntax.Return?.Type))
                 {
+                    str.AppendLine();
                     str.AppendLine("##### Returns");
-                    str.Append(Link(method.Syntax.Return.Type)?.Trim().Replace('{', '<').Replace('}', '>'));
+                    str.AppendLine();
+                    str.Append(Link(method.Syntax.Return.Type)?.Trim());
                     if (string.IsNullOrWhiteSpace(method.Syntax.Return?.Description))
                         str.AppendLine();
                     else
-                        str.Append(": " + method.Syntax.Return.Description);
+                        str.Append(": " + GetSummary(method.Syntax.Return.Description));
                 }
 
                 if ((method.Syntax.Parameters?.Length ?? 0) != 0)
                 {
+                    str.AppendLine();
                     str.AppendLine("##### Parameters");
+                    str.AppendLine();
                     if (method.Syntax.Parameters.Any(p => !string.IsNullOrWhiteSpace(p.Description)))
                     {
                         str.AppendLine("| Type | Name | Description |");
                         str.AppendLine("|:--- |:--- |:--- |");
                         foreach (var parameter in method.Syntax.Parameters)
                             str.AppendLine(
-                                $"| {HtmlEscape(Link(parameter.Type.Replace('{', '<').Replace('}', '>')))} | *{parameter.Id}* | {parameter.Description} |");
+                                $"| {Link(parameter.Type)} | *{parameter.Id}* | {GetSummary(parameter.Description)} |");
                     }
                     else
                     {
@@ -215,7 +219,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                         str.AppendLine("|:--- |:--- |");
                         foreach (var parameter in method.Syntax.Parameters)
                             str.AppendLine(
-                                $"| {HtmlEscape(Link(parameter.Type.Replace('{', '<').Replace('}', '>')))} | *{parameter.Id}* |");
+                                $"| {Link(parameter.Type)} | *{parameter.Id}* |");
                     }
 
                     str.AppendLine();
@@ -264,8 +268,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
             str.AppendLine();
             foreach (var implemented in item.Implements)
             {
-                var link = Link(implemented);
-                str.AppendLine($"* {link.Replace('{', '<').Replace('}', '>')}");
+                str.AppendLine($"* {Link(implemented)}");
             }
         }
 
