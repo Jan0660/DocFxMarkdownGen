@@ -77,6 +77,12 @@ Item[] GetEvents(string uid)
 string Link(string uid, bool nameOnly = false, bool indexLink = false)
 {
     var reference = items.FirstOrDefault(i => i.Uid == uid);
+    if (uid.Contains('{') && reference == null)
+    {
+        // try to resolve single type argument references
+        var replaced = uid.Replace(uid[uid.IndexOf('{')..(uid.LastIndexOf('}') + 1)], "`1");
+        reference = items.FirstOrDefault(i => i.Uid == replaced);
+    }
     if (reference == null)
         // todo: try to resolve to msdn links if System namespace maybe
         return $"`{uid.Replace('{', '<').Replace('}', '>')}`";
@@ -346,7 +352,8 @@ await Parallel.ForEachAsync(items, async (item, _) =>
         str.AppendLine($"* {HtmlEscape(Link(@namespace.Uid, indexLink: true))}");
     str.AppendLine();
     str.AppendLine("---");
-    str.AppendLine($"Generated using [DocFxMarkdownGen](https://github.com/Jan0660/DocFxMarkdownGen) v{versionString}.");
+    str.AppendLine(
+        $"Generated using [DocFxMarkdownGen](https://github.com/Jan0660/DocFxMarkdownGen) v{versionString}.");
     await File.WriteAllTextAsync(Path.Join(config.OutputPath, $"index.md"), str.ToString());
 }
 Info($"Markdown finished in {stopwatch.ElapsedMilliseconds}ms.");
