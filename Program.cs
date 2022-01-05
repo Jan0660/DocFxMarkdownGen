@@ -89,7 +89,7 @@ string Link(string uid, bool nameOnly = false, bool indexLink = false)
     var name = nameOnly ? reference.Name : reference.FullName;
     var dots = indexLink ? "./" : "../";
     var extension = indexLink ? ".md" : "";
-    if (reference.Type is "Class" or "Interface" or "Enum" or "Struct")
+    if (reference.Type is "Class" or "Interface" or "Enum" or "Struct" or "Delegate")
         return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Namespace}/{reference.Name}{extension}")})";
     else if (reference.Type is "Namespace")
         return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Name}/{reference.Name}{extension}")})";
