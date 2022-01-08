@@ -27,6 +27,7 @@ var linkRegex = new Regex("<a href=\"(.+?)\">(.+?)</a>", RegexOptions.Compiled);
 var yamlDeserializer = new DeserializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance)
     .IgnoreUnmatchedProperties().Build();
 var config = yamlDeserializer.Deserialize<Config>(await File.ReadAllTextAsync(Environment.GetEnvironmentVariable("DFMG_CONFIG") ?? "./config.yaml"));
+config.IndexSlug ??= "/api";
 if (Directory.Exists(config.OutputPath))
     Directory.Delete(config.OutputPath, true);
 Directory.CreateDirectory(config.OutputPath);
@@ -344,7 +345,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
     str.AppendLine("title: Index");
     str.AppendLine("sidebar_label: Index");
     str.AppendLine("sidebar_position: 0");
-    str.AppendLine("slug: /api");
+    str.AppendLine($"slug: {config.IndexSlug}");
     str.AppendLine("---");
     str.AppendLine("# API Index");
     str.AppendLine("## Namespaces");
@@ -445,4 +446,5 @@ class Config
 {
     public string YamlPath { get; set; }
     public string OutputPath { get; set; }
+    public string IndexSlug { get; set; }
 }
