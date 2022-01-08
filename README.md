@@ -11,7 +11,7 @@ dotnet tool install -g DocFxMarkdownGen
 
 ## Usage
 
-`config.yaml`:
+By default dfmg takes it's config from `config.yaml`, you can override the file using the `DFMG_CONFIG` environment variable.
 
 ```yaml
 outputPath: /home/jan/whatever/docs/api

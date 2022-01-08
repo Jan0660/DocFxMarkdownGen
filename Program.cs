@@ -26,7 +26,7 @@ var codeRegex = new Regex("<code>(.+?)</code>", RegexOptions.Compiled);
 var linkRegex = new Regex("<a href=\"(.+?)\">(.+?)</a>", RegexOptions.Compiled);
 var yamlDeserializer = new DeserializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance)
     .IgnoreUnmatchedProperties().Build();
-var config = yamlDeserializer.Deserialize<Config>(await File.ReadAllTextAsync("./config.yaml"));
+var config = yamlDeserializer.Deserialize<Config>(await File.ReadAllTextAsync(Environment.GetEnvironmentVariable("DFMG_CONFIG") ?? "./config.yaml"));
 if (Directory.Exists(config.OutputPath))
     Directory.Delete(config.OutputPath, true);
 Directory.CreateDirectory(config.OutputPath);
