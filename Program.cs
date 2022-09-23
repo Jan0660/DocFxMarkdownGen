@@ -2,22 +2,26 @@
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-using Log73;
-using static Log73.Console;
+using DocFxMarkdownGen;
+using Microsoft.Extensions.Logging;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
-// ReSharper disable ClassNeverInstantiated.Global
-// ReSharper disable UnusedAutoPropertyAccessor.Global
-#pragma warning disable CS8618
+using ILoggerFactory loggerFactory =
+    LoggerFactory.Create(builder =>
+        builder.AddSimpleConsole(options =>
+        {
+            options.IncludeScopes = true;
+            options.SingleLine = true;
+            options.TimestampFormat = "hh:mm:ss ";
+        }));
 
-Options.UseAnsi = false;
-if (Environment.GetEnvironmentVariable("JAN_DEBUG") == "1")
-    Options.LogLevel = LogLevel.Debug;
+var logger = loggerFactory.CreateLogger<Program>();
+
 var versionString = Assembly.GetEntryAssembly()?
     .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
     .InformationalVersion ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString();
-WriteLine($"DocFxMarkdownGen v{versionString} running...");
+
 
 var xrefRegex = new Regex("<xref href=\"(.+?)\" data-throw-if-not-resolved=\"false\"></xref>", RegexOptions.Compiled);
 var langwordXrefRegex =
@@ -33,7 +37,7 @@ if (Directory.Exists(config.OutputPath))
 Directory.CreateDirectory(config.OutputPath);
 
 var stopwatch = Stopwatch.StartNew();
-List<Item> items = new();
+Dictionary<string,Item> items = new();
 
 #region read all yaml and create directory structure
 
@@ -41,20 +45,24 @@ await Parallel.ForEachAsync(Directory.GetFiles(config.YamlPath, "*.yml"), async 
 {
     if (file.EndsWith("toc.yml"))
         return;
-    Debug(file);
+    logger.LogDebug(file);
     var obj = yamlDeserializer.Deserialize<DocFxFile>(await File.ReadAllTextAsync(file));
     lock (items)
     {
-        items.AddRange(obj.Items);
+        foreach (var item in obj.Items)
+        {
+            items.Add(item.Uid, item);
+        }
     }
 });
-Info($"Read all YAML in {stopwatch.ElapsedMilliseconds}ms.");
+logger.LogInformation($"Read all YAML in {stopwatch.ElapsedMilliseconds}ms.");
 // create namespace directories
-await Parallel.ForEachAsync(items, async (item, _) =>
+await Parallel.ForEachAsync(items, async (kvp, _) =>
 {
+    var item = kvp.Value;
     if (item.Type == "Namespace")
     {
-        Debug(item.Type + ": " + item.Name);
+        logger.LogDebug(item.Type + ": " + item.Name);
         var dir = Path.Combine(config.OutputPath, item.Name);
         Directory.CreateDirectory(dir);
     }
@@ -64,25 +72,75 @@ await Parallel.ForEachAsync(items, async (item, _) =>
 
 // util methods
 Item[] GetProperties(string uid)
-    => items.Where(i => i.Parent == uid && i.Type == "Property").ToArray();
+    => items.Values.Where(i => i.Parent == uid && i.Type == "Property").ToArray();
 
 Item[] GetFields(string uid)
-    => items.Where(i => i.Parent == uid && i.Type == "Field").ToArray();
+    => items.Values.Where(i => i.Parent == uid && i.Type == "Field").ToArray();
 
 Item[] GetMethods(string uid)
-    => items.Where(i => i.Parent == uid && i.Type == "Method").ToArray();
+    => items.Values.Where(i => i.Parent == uid && i.Type == "Method").ToArray();
 
 Item[] GetEvents(string uid)
-    => items.Where(i => i.Parent == uid && i.Type == "Event").ToArray();
+    => items.Values.Where(i => i.Parent == uid && i.Type == "Event").ToArray();
+
+Item[] GetInheritedMethods(string uid)
+{
+    if(uid == "System.Object")
+        return Array.Empty<Item>();
+    var item = TryGet(uid);
+    if (item == null || item?.InheritedMembers == null || item?.Inheritance == null || item.Inheritance.Length == 0)
+        return Array.Empty<Item>();
+    if(item.Inheritance.Last() == "System.Object")
+        return Array.Empty<Item>();
+    var baseClass = TryGet(item.Inheritance.Last());
+    if (baseClass == null)
+        return Array.Empty<Item>();
+    var results = TryGetAll(baseClass.Children).Where(x => x.Type == "Method").ToArray();
+    return results;
+}
+
+Item[] GetInheritedProperties(string uid)
+{
+    if(uid == "System.Object")
+        return Array.Empty<Item>();
+    var item = TryGet(uid);
+    if (item == null || item?.InheritedMembers == null || item?.Inheritance == null || item.Inheritance.Length == 0)
+        return Array.Empty<Item>();
+    if(item.Inheritance.Last() == "System.Object")
+        return Array.Empty<Item>();
+    var baseClass = TryGet(item.Inheritance.Last());
+    if (baseClass == null)
+        return Array.Empty<Item>();
+    var results = TryGetAll(baseClass.Children).Where(x => x.Type == "Property").ToArray();
+    return results;
+}
+
+Item? TryGet(string uid)
+{
+    return items.ContainsKey(uid) ? items[uid] : null;
+}
+
+Item[] TryGetAll(string[] uids)
+{
+    var result = new List<Item>();
+    foreach (var uid in uids)
+    {
+        var item = TryGet(uid);
+        if (item != null)
+            result.Add(item);
+    }
+
+    return result.ToArray();
+}
 
 string Link(string uid, bool nameOnly = false, bool indexLink = false)
 {
-    var reference = items.FirstOrDefault(i => i.Uid == uid);
+    var reference = TryGet(uid);
     if (uid.Contains('{') && reference == null)
     {
         // try to resolve single type argument references
         var replaced = uid.Replace(uid[uid.IndexOf('{')..(uid.LastIndexOf('}') + 1)], "`1");
-        reference = items.FirstOrDefault(i => i.Uid == replaced);
+        reference = TryGet(replaced);
     }
     if (reference == null)
         // todo: try to resolve to msdn links if System namespace maybe
@@ -96,7 +154,7 @@ string Link(string uid, bool nameOnly = false, bool indexLink = false)
         return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Name}/{reference.Name}{extension}")})";
     else
     {
-        var parent = items.FirstOrDefault(i => i.Uid == reference.Parent);
+        var parent = TryGet(reference.Parent);
         if (parent == null)
             return $"`{uid.Replace('{', '<').Replace('}', '>')}`";
         return
@@ -129,7 +187,7 @@ string? FileEscape(string? str)
 
 string SourceLink(Item item)
     =>
-        $"###### [View Source]({item.Source.Remote.Repo}/blob/{item.Source.Remote.Branch}/{item.Source.Remote.Path}#L{item.Source.StartLine + 1})";
+        item.Source?.Remote?.Repo != null ? $"###### [View Source]({item.Source.Remote.Repo}/blob/{item.Source.Remote.Branch}/{item.Source.Remote.Path}#L{item.Source.StartLine + 1})" : "";
 
 void Declaration(StringBuilder str, Item item)
 {
@@ -139,11 +197,70 @@ void Declaration(StringBuilder str, Item item)
     str.AppendLine("```");
 }
 
-Info("Generating and writing markdown...");
+void MethodSummary(StringBuilder str, Item method)
+{
+    str.AppendLine($"### {HtmlEscape(method.Name)}");
+    str.AppendLine(GetSummary(method.Summary)?.Trim());
+    Declaration(str, method);
+    if (!string.IsNullOrWhiteSpace(method.Syntax.Return?.Type))
+    {
+        str.AppendLine();
+        str.AppendLine("##### Returns");
+        str.AppendLine();
+        str.Append(Link(method.Syntax.Return.Type)?.Trim());
+        if (string.IsNullOrWhiteSpace(method.Syntax.Return?.Description))
+            str.AppendLine();
+        else
+            str.Append(": " + GetSummary(method.Syntax.Return.Description));
+    }
+
+    if ((method.Syntax.Parameters?.Length ?? 0) != 0)
+    {
+        str.AppendLine();
+        str.AppendLine("##### Parameters");
+        str.AppendLine();
+        if (method.Syntax.Parameters.Any(p => !string.IsNullOrWhiteSpace(p.Description)))
+        {
+            str.AppendLine("| Type | Name | Description |");
+            str.AppendLine("|:--- |:--- |:--- |");
+            foreach (var parameter in method.Syntax.Parameters)
+                str.AppendLine(
+                    $"| {Link(parameter.Type)} | *{parameter.Id}* | {GetSummary(parameter.Description)} |");
+        }
+        else
+        {
+            str.AppendLine("| Type | Name |");
+            str.AppendLine("|:--- |:--- |");
+            foreach (var parameter in method.Syntax.Parameters)
+                str.AppendLine(
+                    $"| {Link(parameter.Type)} | *{parameter.Id}* |");
+        }
+
+        str.AppendLine();
+    }
+
+    if ((method.Syntax.TypeParameters?.Length ?? 0) != 0)
+    {
+        str.AppendLine("##### Type Parameters");
+        if (method.Syntax.TypeParameters.Any(tp => !string.IsNullOrWhiteSpace(tp.Description)))
+        {
+            str.AppendLine("| Name | Description |");
+            str.AppendLine("|:--- |:--- |");
+            foreach (var typeParameter in method.Syntax.TypeParameters)
+                str.AppendLine($"| {Link(typeParameter.Id)} | {typeParameter.Description} |");
+        }
+        else
+            foreach (var typeParameter in method.Syntax.TypeParameters)
+                str.AppendLine($"* {Link(typeParameter.Id)}");
+    }
+}
+
+logger.LogInformation("Generating and writing markdown...");
 stopwatch.Restart();
 // create type files finally
-await Parallel.ForEachAsync(items, async (item, _) =>
+await Parallel.ForEachAsync(items, async (kvp, _) =>
 {
+    var item = kvp.Value;
     if (item.CommentId.StartsWith("T:"))
     {
         var str = new StringBuilder();
@@ -171,7 +288,29 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 Declaration(str, property);
             }
         }
-
+        
+        // Inherited Properties
+        try
+        {
+            var inheritedProperties = GetInheritedProperties(item.Uid);
+            if (inheritedProperties.Length > 0)
+            {
+                str.AppendLine("## Inherited Properties");
+                foreach (var property in inheritedProperties)
+                {
+                    str.AppendLine($"### {property.Name}");
+                    str.AppendLine(GetSummary(property.Summary)?.Trim());
+                    Declaration(str, property);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+        
+        
         // Fields
         var fields = GetFields(item.Uid);
         if (fields.Length != 0)
@@ -192,60 +331,18 @@ await Parallel.ForEachAsync(items, async (item, _) =>
             str.AppendLine("## Methods");
             foreach (var method in methods)
             {
-                str.AppendLine($"### {HtmlEscape(method.Name)}");
-                str.AppendLine(GetSummary(method.Summary)?.Trim());
-                Declaration(str, method);
-                if (!string.IsNullOrWhiteSpace(method.Syntax.Return?.Type))
-                {
-                    str.AppendLine();
-                    str.AppendLine("##### Returns");
-                    str.AppendLine();
-                    str.Append(Link(method.Syntax.Return.Type)?.Trim());
-                    if (string.IsNullOrWhiteSpace(method.Syntax.Return?.Description))
-                        str.AppendLine();
-                    else
-                        str.Append(": " + GetSummary(method.Syntax.Return.Description));
-                }
+                /// write method details
+                MethodSummary(str, method);
+            }
+        }
 
-                if ((method.Syntax.Parameters?.Length ?? 0) != 0)
-                {
-                    str.AppendLine();
-                    str.AppendLine("##### Parameters");
-                    str.AppendLine();
-                    if (method.Syntax.Parameters.Any(p => !string.IsNullOrWhiteSpace(p.Description)))
-                    {
-                        str.AppendLine("| Type | Name | Description |");
-                        str.AppendLine("|:--- |:--- |:--- |");
-                        foreach (var parameter in method.Syntax.Parameters)
-                            str.AppendLine(
-                                $"| {Link(parameter.Type)} | *{parameter.Id}* | {GetSummary(parameter.Description)} |");
-                    }
-                    else
-                    {
-                        str.AppendLine("| Type | Name |");
-                        str.AppendLine("|:--- |:--- |");
-                        foreach (var parameter in method.Syntax.Parameters)
-                            str.AppendLine(
-                                $"| {Link(parameter.Type)} | *{parameter.Id}* |");
-                    }
-
-                    str.AppendLine();
-                }
-
-                if ((method.Syntax.TypeParameters?.Length ?? 0) != 0)
-                {
-                    str.AppendLine("##### Type Parameters");
-                    if (method.Syntax.TypeParameters.Any(tp => !string.IsNullOrWhiteSpace(tp.Description)))
-                    {
-                        str.AppendLine("| Name | Description |");
-                        str.AppendLine("|:--- |:--- |");
-                        foreach (var typeParameter in method.Syntax.TypeParameters)
-                            str.AppendLine($"| {Link(typeParameter.Id)} | {typeParameter.Description} |");
-                    }
-                    else
-                        foreach (var typeParameter in method.Syntax.TypeParameters)
-                            str.AppendLine($"* {Link(typeParameter.Id)}");
-                }
+        var inheritedMethods = GetInheritedMethods(item.Uid);
+        if (inheritedMethods.Length > 0)
+        {
+            str.AppendLine("## Inherited Methods");
+            foreach (var inheritedMethod in inheritedMethods)
+            {
+                MethodSummary(str, inheritedMethod);
             }
         }
 
@@ -279,29 +376,6 @@ await Parallel.ForEachAsync(items, async (item, _) =>
             }
         }
 
-
-        // Extension methods
-        if ((item.ExtensionMethods?.Length ?? 0) != 0)
-        {
-            str.AppendLine("## Extension Methods");
-            foreach (var extMethod in item.ExtensionMethods!)
-            {
-                // ReSharper disable once SimplifyConditionalTernaryExpression
-                // todo: wont link if other args are present
-                var method = items.FirstOrDefault(i =>
-                    ((i.Syntax?.Parameters?.Any() ?? false)
-                        ? (i.Syntax.Parameters[0].Type + '.' +
-                           i.FullName
-                               [..(i.FullName.IndexOf('(') == -1 ? i.FullName.Length : i.FullName.IndexOf('('))] ==
-                           extMethod)
-                        : false));
-                if (method == null)
-                    str.AppendLine($"* {extMethod}");
-                else
-                    str.AppendLine($"* {Link(method.Uid)}");
-            }
-        }
-
         await File.WriteAllTextAsync(
             Path.Join(config.OutputPath, item.Namespace, item.Name.Replace('<', '`').Replace('>', '`')) + ".md",
             str.ToString());
@@ -318,7 +392,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
 
         void Do(string type, string header)
         {
-            var @where = items.Where(i => i.Namespace == item.Name && i.Type == type);
+            var @where = items.Values.Where(i => i.Namespace == item.Name && i.Type == type);
             if (@where.Any())
             {
                 str.AppendLine($"## {header}");
@@ -349,7 +423,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
     str.AppendLine("---");
     str.AppendLine("# API Index");
     str.AppendLine("## Namespaces");
-    foreach (var @namespace in items.Where(i => i.Type == "Namespace").OrderBy(i => i.Name))
+    foreach (var @namespace in items.Values.Where(i => i.Type == "Namespace").OrderBy(i => i.Name))
         str.AppendLine($"* {HtmlEscape(Link(@namespace.Uid, indexLink: true))}");
     str.AppendLine();
     str.AppendLine("---");
@@ -357,94 +431,6 @@ await Parallel.ForEachAsync(items, async (item, _) =>
         $"Generated using [DocFxMarkdownGen](https://github.com/Jan0660/DocFxMarkdownGen) v{versionString}.");
     await File.WriteAllTextAsync(Path.Join(config.OutputPath, $"index.md"), str.ToString());
 }
-Info($"Markdown finished in {stopwatch.ElapsedMilliseconds}ms.");
+logger.LogInformation($"Markdown finished in {stopwatch.ElapsedMilliseconds}ms.");
 
 // classes
-class DocFxFile
-{
-    public Item[] Items { get; set; }
-}
-
-class Item
-{
-    public string Uid { get; set; }
-    public string CommentId { get; set; }
-    public string Id { get; set; }
-    public string Parent { get; set; }
-    public string[] Children { get; set; }
-    public string[] Langs { get; set; }
-    public string Definition { get; set; }
-    public string Name { get; set; }
-    public string NameWithType { get; set; }
-    public string FullName { get; set; }
-
-    public string Type { get; set; }
-
-    public Source Source { get; set; }
-    public string[] Assemblies { get; set; }
-
-    public string Namespace { get; set; }
-
-    // todo: trim when loading instead of when usig gnfgnrjfuijik
-    public string? Summary { get; set; }
-
-    // todo: example
-    public Syntax Syntax { get; set; }
-
-    public string[] Inheritance { get; set; }
-    public string[]? Implements { get; set; }
-
-    public string[] ExtensionMethods { get; set; }
-    // modifiers.csharp
-    // modifiers.vb
-}
-
-class Syntax
-{
-    public string Content { get; set; }
-    [YamlMember(Alias = "content.vb")] public string ContentVb { get; set; }
-    public Parameter[] Parameters { get; set; }
-    public TypeParameter[] TypeParameters { get; set; }
-    public SyntaxReturn Return { get; set; }
-}
-
-class Source
-{
-    public Remote Remote { get; set; }
-    public string Id { get; set; }
-    public string Path { get; set; }
-    public int StartLine { get; set; }
-}
-
-class Remote
-{
-    public string Path { get; set; }
-    public string Branch { get; set; }
-    public string Repo { get; set; }
-}
-
-class Parameter
-{
-    public string Id { get; set; }
-    public string Type { get; set; }
-    public string? Description { get; set; }
-}
-
-class TypeParameter
-{
-    public string Id { get; set; }
-    public string Description { get; set; }
-}
-
-class SyntaxReturn
-{
-    public string Type { get; set; }
-    public string? Description { get; set; }
-}
-
-class Config
-{
-    public string YamlPath { get; set; }
-    public string OutputPath { get; set; }
-    public string IndexSlug { get; set; }
-}

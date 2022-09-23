@@ -15,10 +15,17 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Log73" Version="0.7.0"/>
-        <PackageReference Include="YamlDotNet" Version="11.2.1"/>
-        <Compile Remove="examples\**"/>
-        <None Remove="examples\**\*"/>
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="6.0.0" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" />
+        <PackageReference Include="YamlDotNet" Version="11.2.1" />
+        <Compile Remove="examples\**" />
+        <None Remove="examples\**\*" />
+        <None Update="config.yaml">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="api\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
 </Project>
