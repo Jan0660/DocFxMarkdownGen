@@ -128,7 +128,7 @@ string? FileEscape(string? str)
 
 
 string SourceLink(Item item)
-    =>
+    => item.Source?.Remote == null ? "" :
         $"###### [View Source]({item.Source.Remote.Repo}/blob/{item.Source.Remote.Branch}/{item.Source.Remote.Path}#L{item.Source.StartLine + 1})";
 
 void Declaration(StringBuilder str, Item item)
