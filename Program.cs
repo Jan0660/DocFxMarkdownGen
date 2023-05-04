@@ -311,8 +311,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
         var str = new StringBuilder();
         str.AppendLine("---");
         str.AppendLine("title: " + item.Type + " " + item.Name);
-        str.AppendLine("sidebar_label: Index");
-        str.AppendLine("sidebar_position: 0");
+        str.AppendLine("sidebar_label: " + item.Name);
         str.AppendLine("---");
         str.AppendLine($"# Namespace {HtmlEscape(item.Name)}");
 
