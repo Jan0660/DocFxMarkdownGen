@@ -22,6 +22,7 @@ WriteLine($"DocFxMarkdownGen v{versionString} running...");
 var xrefRegex = new Regex("<xref href=\"(.+?)\" data-throw-if-not-resolved=\"false\"></xref>", RegexOptions.Compiled);
 var langwordXrefRegex =
     new Regex("<xref uid=\"langword_csharp_.+?\" name=\"(.+?)\" href=\"\"></xref>", RegexOptions.Compiled);
+var codeBlockRegex = new Regex("<pre><code class=\"lang-csharp\">((.|\n)+?)</code></pre>", RegexOptions.Compiled);
 var codeRegex = new Regex("<code>(.+?)</code>", RegexOptions.Compiled);
 var linkRegex = new Regex("<a href=\"(.+?)\">(.+?)</a>", RegexOptions.Compiled);
 var yamlDeserializer = new DeserializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance)
@@ -114,6 +115,7 @@ string? GetSummary(string? summary)
         return Link(uid);
     });
     summary = langwordXrefRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
+    summary = codeBlockRegex.Replace(summary, match => $"```csharp\n{match.Groups[1].Value.Trim()}\n```");
     summary = codeRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
     summary = linkRegex.Replace(summary, match => $"[{match.Groups[2].Value}]({match.Groups[1].Value})");
 
