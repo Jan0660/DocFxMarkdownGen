@@ -246,6 +246,20 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                         foreach (var typeParameter in method.Syntax.TypeParameters)
                             str.AppendLine($"* {Link(typeParameter.Id)}");
                 }
+
+                if((method.Exceptions?.Length ?? 0) != 0)
+                {
+                    str.AppendLine();
+                    str.AppendLine("##### Exceptions");
+                    str.AppendLine();
+                    foreach (var exception in method.Exceptions)
+                    {
+                        // those two spaces are there so that we can have a line break without too much spacing
+                        // before the next line
+                        str.AppendLine($"[{exception.Type}]({Link(exception.Type)})  ");
+                        str.AppendLine(GetSummary(exception.Description)?.Trim());
+                    }
+                }
             }
         }
 
@@ -396,6 +410,14 @@ class Item
     public string[] ExtensionMethods { get; set; }
     // modifiers.csharp
     // modifiers.vb
+    public ThrowsException[]? Exceptions { get; set; }
+}
+
+class ThrowsException
+{
+    public string Type { get; set; }
+    public string CommentId { get; set; }
+    public string Description { get; set; }
 }
 
 class Syntax
