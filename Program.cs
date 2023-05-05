@@ -161,6 +161,55 @@ await Parallel.ForEachAsync(items, async (item, _) =>
         str.AppendLine();
         str.AppendLine($"###### **Assembly**: {item.Assemblies[0]}.dll");
         Declaration(str, item);
+        // do not when it is only System.Object
+        if (item.Inheritance?.Length > 1)
+        {
+            str.Append("**Inheritance:** ");
+            for (int i = 0; i < item.Inheritance.Length; i++)
+            {
+                str.Append(Link(item.Inheritance[i]));
+                if (i != item.Inheritance.Length - 1)
+                    str.Append(" -> ");
+            }
+
+            str.Append("\n\n");
+        }
+
+        if (item.DerivedClasses != null)
+        {
+            str.AppendLine("**Derived:**  ");
+            if (item.DerivedClasses.Length > 8)
+                str.AppendLine("\n<details><summary>Expand</summary>\n");
+
+            for (var i = 0; i < item.DerivedClasses.Length; i++)
+            {
+                str.Append(Link(item.DerivedClasses[i]));
+                if (i != item.DerivedClasses.Length - 1)
+                    str.Append(", ");
+            }
+
+            if (item.DerivedClasses.Length > 8)
+                str.AppendLine("\n</details>\n");
+            str.Append("\n\n");
+        }
+
+        if (item.Implements != null)
+        {
+            str.AppendLine("**Implements:**  ");
+            if (item.Implements.Length > 8)
+                str.AppendLine("\n<details><summary>Expand</summary>\n");
+
+            for (var i = 0; i < item.Implements.Length; i++)
+            {
+                str.Append(Link(item.Implements[i]));
+                if (i != item.Implements.Length - 1)
+                    str.Append(", ");
+            }
+
+            if (item.Implements.Length > 8)
+                str.AppendLine("\n</details>\n");
+            str.Append("\n\n");
+        }
         // Properties
         var properties = GetProperties(item.Uid);
         if (properties.Length != 0)
@@ -406,7 +455,8 @@ class Item
     // todo: example
     public Syntax Syntax { get; set; }
 
-    public string[] Inheritance { get; set; }
+    public string[]? Inheritance { get; set; }
+    public string[]? DerivedClasses { get; set; }
     public string[]? Implements { get; set; }
 
     public string[] ExtensionMethods { get; set; }
