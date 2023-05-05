@@ -101,7 +101,7 @@ string Link(string uid, bool nameOnly = false, bool indexLink = false)
         if (parent == null)
             return $"`{uid.Replace('{', '<').Replace('}', '>')}`";
         return
-            $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Namespace}/{parent.Name}{extension}")}#{reference.Name.ToLower().Replace("(", "").Replace(")", "")})";
+            $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Namespace}/{parent.Name}{extension}")}#{reference.Name.ToLower().Replace("(", "").Replace(")", "").Replace("?", "")})";
     }
 }
 
