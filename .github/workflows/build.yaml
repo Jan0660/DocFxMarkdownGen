@@ -29,4 +29,4 @@ jobs:
       - name: pack
         run: dotnet pack --configuration Release -o ./bin/nupkg
       - name: push
-        run: dotnet nuget push ./bin/nupkg/*.nupkg -k ${NUGET_KEY} -s https://api.nuget.org/v3/index.json
+        run: dotnet nuget push ./bin/nupkg/*.nupkg -k ${{ secrets.NUGET_KEY }} -s https://api.nuget.org/v3/index.json
