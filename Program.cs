@@ -307,7 +307,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                     {
                         // those two spaces are there so that we can have a line break without too much spacing
                         // before the next line
-                        str.AppendLine($"[{exception.Type}]({Link(exception.Type)})  ");
+                        str.AppendLine($"{Link(exception.Type)}  ");
                         str.AppendLine(GetSummary(exception.Description)?.Trim());
                     }
                 }
