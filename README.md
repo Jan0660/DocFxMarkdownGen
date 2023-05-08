@@ -24,9 +24,13 @@ yamlPath: /home/jan/gen/api
 
 ## Example sites
 
-- [`examples/discord-net-dfmg`](https://discord-net-dfmg.jan0660.dev/api): example site done on [Discord.Net](https://github.com/discord-net/Discord.Net)
-- [Log73](https://latest-log73.jan0660.dev/api)
+- [RCaron](https://rcaron.jan0660.dev/api)
+- (out of date) [`examples/discord-net-dfmg`](https://discord-net-dfmg.jan0660.dev/api): example site done on [Discord.Net](https://github.com/discord-net/Discord.Net)
+- (out of date) [Log73](https://latest-log73.jan0660.dev/api)
 
-For creating your own site, head to [dfmg-template](https://github.com/Jan0660/dfmg-template).
+For creating your own site, head to:
 
-This project is still very new, if you find an issue in the markdown generated, please open an issue!
+- [dfmg-template](https://github.com/Jan0660/dfmg-template) for a minimalish example
+- [dfmg-template2](https://github.com/Jan0660/dfmg-template2) for a more complete example with versioned docs and CI examples for deploying to GitHub Pages and Vercel from GitHub Actions
+
+This project is not finished, if you find an issue or something missing in the markdown generated, please open an issue or even open a PR!
