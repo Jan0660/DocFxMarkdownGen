@@ -15,10 +15,10 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Log73" Version="0.7.0"/>
-        <PackageReference Include="YamlDotNet" Version="11.2.1"/>
-        <Compile Remove="examples\**"/>
-        <None Remove="examples\**\*"/>
+        <PackageReference Include="Log73" Version="0.7.0" />
+        <PackageReference Include="YamlDotNet" Version="13.1.0" />
+        <Compile Remove="examples\**" />
+        <None Remove="examples\**\*" />
     </ItemGroup>
 
 </Project>
