@@ -31,7 +31,6 @@ var yamlDeserializer = new DeserializerBuilder().WithNamingConvention(CamelCaseN
 var config =
     yamlDeserializer.Deserialize<Config>(
         await File.ReadAllTextAsync(Environment.GetEnvironmentVariable("DFMG_CONFIG") ?? "./config.yaml"));
-config.IndexSlug ??= "/api";
 if (Environment.GetEnvironmentVariable("DFMG_OUTPUT_PATH") is { } outputPath and not "")
 {
     config.OutputPath = outputPath;
@@ -66,7 +65,7 @@ await Parallel.ForEachAsync(Directory.GetFiles(config.YamlPath, "*.yml"), async 
 });
 Info($"Read all YAML in {stopwatch.ElapsedMilliseconds}ms.");
 // create namespace directories
-await Parallel.ForEachAsync(items, async (item, _) =>
+Parallel.ForEach(items, (item, _) =>
 {
     if (item.Type == "Namespace")
     {
@@ -103,10 +102,10 @@ Item[] GetEvents(string uid)
     => items.Where(i => i.Parent == uid && i.Type == "Event").ToArray();
 
 string? HtmlEscape(string? str)
-    => str?.Replace("<", "&lt;")?.Replace(">", "&gt;");
+    => str?.Replace("<", "&lt;").Replace(">", "&gt;");
 
 string? FileEscape(string? str)
-    => str?.Replace("<", "`")?.Replace(">", "`");
+    => str?.Replace("<", "`").Replace(">", "`");
 
 string SourceLink(Item item)
     => item.Source?.Remote == null
@@ -116,9 +115,12 @@ string SourceLink(Item item)
 void Declaration(StringBuilder str, Item item)
 {
     str.AppendLine(SourceLink(item));
-    str.AppendLine("```csharp title=\"Declaration\"");
-    str.AppendLine(item.Syntax.Content);
-    str.AppendLine("```");
+    if (item.Syntax != null)
+    {
+        str.AppendLine("```csharp title=\"Declaration\"");
+        str.AppendLine(item.Syntax.Content);
+        str.AppendLine("```");
+    }
 }
 
 Info("Generating and writing markdown...");
@@ -307,19 +309,19 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 str.AppendLine($"### {HtmlEscape(method.Name)}");
                 str.AppendLine(GetSummary(method.Summary, isGroupedType)?.Trim());
                 Declaration(str, method);
-                if (!string.IsNullOrWhiteSpace(method.Syntax.Return?.Type))
+                if (!string.IsNullOrWhiteSpace(method.Syntax!.Return?.Type))
                 {
                     str.AppendLine();
                     str.AppendLine("##### Returns");
                     str.AppendLine();
-                    str.Append(Link(method.Syntax.Return.Type, isGroupedType)?.Trim());
+                    str.Append(Link(method.Syntax.Return.Type, isGroupedType).Trim());
                     if (string.IsNullOrWhiteSpace(method.Syntax.Return?.Description))
                         str.AppendLine();
                     else
                         str.Append(": " + GetSummary(method.Syntax.Return.Description, isGroupedType));
                 }
 
-                if ((method.Syntax.Parameters?.Length ?? 0) != 0)
+                if (method.Syntax.Parameters is { Length: > 0 })
                 {
                     str.AppendLine();
                     str.AppendLine("##### Parameters");
@@ -344,7 +346,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                     str.AppendLine();
                 }
 
-                if ((method.Syntax.TypeParameters?.Length ?? 0) != 0)
+                if (method.Syntax.TypeParameters is { Length: > 0 })
                 {
                     str.AppendLine("##### Type Parameters");
                     if (method.Syntax.TypeParameters.Any(tp => !string.IsNullOrWhiteSpace(tp.Description)))
@@ -360,7 +362,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                             str.AppendLine($"* {Link(typeParameter.Id, isGroupedType)}");
                 }
 
-                if ((method.Exceptions?.Length ?? 0) != 0)
+                if (method.Exceptions is { Length: > 0 })
                 {
                     str.AppendLine();
                     str.AppendLine("##### Exceptions");
@@ -387,10 +389,10 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 str.AppendLine(GetSummary(@event.Summary, isGroupedType)?.Trim());
                 Declaration(str, @event);
                 str.AppendLine("##### Event Type");
-                if (@event.Syntax.Return.Description == null)
-                    str.AppendLine(Link(@event.Syntax.Return.Type, isGroupedType)?.Trim());
+                if (@event.Syntax!.Return!.Description == null)
+                    str.AppendLine(Link(@event.Syntax.Return.Type, isGroupedType).Trim());
                 else
-                    str.AppendLine(Link(@event.Syntax.Return.Type, isGroupedType)?.Trim() + ": " +
+                    str.AppendLine(Link(@event.Syntax.Return.Type, isGroupedType).Trim() + ": " +
                                    @event.Syntax.Return.Description);
             }
         }
@@ -408,7 +410,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
         }
 
         // Extension methods
-        if ((item.ExtensionMethods?.Length ?? 0) != 0)
+        if (item.ExtensionMethods is { Length: > 1 })
         {
             str.AppendLine("## Extension Methods");
             foreach (var extMethod in item.ExtensionMethods!)
@@ -450,11 +452,11 @@ await Parallel.ForEachAsync(items, async (item, _) =>
 
         void Do(string type, string header)
         {
-            var @where = items.Where(i => i.Namespace == item.Name && i.Type == type);
-            if (@where.Any())
+            var where = items.Where(i => i.Namespace == item.Name && i.Type == type).ToArray();
+            if (where.Length != 0)
             {
                 str.AppendLine($"## {header}");
-                foreach (var item1 in @where.OrderBy(i => i.Name))
+                foreach (var item1 in where.OrderBy(i => i.Name))
                 {
                     str.AppendLine($"### {HtmlEscape(Link(item1.Uid, false, nameOnly: true))}");
                     str.AppendLine(GetSummary(item1.Summary, false)?.Trim());
@@ -513,7 +515,7 @@ class Item
 
     public string Type { get; set; }
 
-    public Source Source { get; set; }
+    public Source? Source { get; set; }
     public string[] Assemblies { get; set; }
 
     public string Namespace { get; set; }
@@ -522,13 +524,13 @@ class Item
     public string? Summary { get; set; }
 
     // todo: example
-    public Syntax Syntax { get; set; }
+    public Syntax? Syntax { get; set; }
 
     public string[]? Inheritance { get; set; }
     public string[]? DerivedClasses { get; set; }
     public string[]? Implements { get; set; }
 
-    public string[] ExtensionMethods { get; set; }
+    public string[]? ExtensionMethods { get; set; }
 
     // modifiers.csharp
     // modifiers.vb
@@ -546,14 +548,14 @@ class Syntax
 {
     public string Content { get; set; }
     [YamlMember(Alias = "content.vb")] public string ContentVb { get; set; }
-    public Parameter[] Parameters { get; set; }
-    public TypeParameter[] TypeParameters { get; set; }
-    public SyntaxReturn Return { get; set; }
+    public Parameter[]? Parameters { get; set; }
+    public TypeParameter[]? TypeParameters { get; set; }
+    public SyntaxReturn? Return { get; set; }
 }
 
 class Source
 {
-    public Remote Remote { get; set; }
+    public Remote? Remote { get; set; }
     public string Id { get; set; }
     public string Path { get; set; }
     public int StartLine { get; set; }
@@ -589,7 +591,7 @@ class Config
 {
     public string YamlPath { get; set; }
     public string OutputPath { get; set; }
-    public string IndexSlug { get; set; }
+    public string IndexSlug { get; set; } = "/api";
     public ConfigTypesGrouping? TypesGrouping { get; set; }
 }
 
