@@ -27,8 +27,22 @@ var codeRegex = new Regex("<code>(.+?)</code>", RegexOptions.Compiled);
 var linkRegex = new Regex("<a href=\"(.+?)\">(.+?)</a>", RegexOptions.Compiled);
 var yamlDeserializer = new DeserializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance)
     .IgnoreUnmatchedProperties().Build();
-var config = yamlDeserializer.Deserialize<Config>(await File.ReadAllTextAsync(Environment.GetEnvironmentVariable("DFMG_CONFIG") ?? "./config.yaml"));
+var config =
+    yamlDeserializer.Deserialize<Config>(
+        await File.ReadAllTextAsync(Environment.GetEnvironmentVariable("DFMG_CONFIG") ?? "./config.yaml"));
 config.IndexSlug ??= "/api";
+if (Environment.GetEnvironmentVariable("DFMG_OUTPUT_PATH") is { } outputPath and not "")
+{
+    config.OutputPath = outputPath;
+    Info($"Output path overriden by env: {config.OutputPath}");
+}
+
+if (Environment.GetEnvironmentVariable("DFMG_YAML_PATH") is { } yamlPath and not "")
+{
+    config.YamlPath = yamlPath;
+    Info($"YAML path overriden by env: {config.YamlPath}");
+}
+
 if (Directory.Exists(config.OutputPath))
     Directory.Delete(config.OutputPath, true);
 Directory.CreateDirectory(config.OutputPath);
@@ -85,6 +99,7 @@ string Link(string uid, bool nameOnly = false, bool indexLink = false)
         var replaced = uid.Replace(uid[uid.IndexOf('{')..(uid.LastIndexOf('}') + 1)], "`1");
         reference = items.FirstOrDefault(i => i.Uid == replaced);
     }
+
     if (reference == null)
         // todo: try to resolve to msdn links if System namespace maybe
         return $"`{uid.Replace('{', '<').Replace('}', '>')}`";
@@ -130,8 +145,9 @@ string? FileEscape(string? str)
 
 
 string SourceLink(Item item)
-    => item.Source?.Remote == null ? "" :
-        $"###### [View Source]({item.Source.Remote.Repo}/blob/{item.Source.Remote.Branch}/{item.Source.Remote.Path}#L{item.Source.StartLine + 1})";
+    => item.Source?.Remote == null
+        ? ""
+        : $"###### [View Source]({item.Source.Remote.Repo}/blob/{item.Source.Remote.Branch}/{item.Source.Remote.Path}#L{item.Source.StartLine + 1})";
 
 void Declaration(StringBuilder str, Item item)
 {
@@ -210,6 +226,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 str.AppendLine("\n</details>\n");
             str.Append("\n\n");
         }
+
         // Properties
         var properties = GetProperties(item.Uid);
         if (properties.Length != 0)
@@ -298,7 +315,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                             str.AppendLine($"* {Link(typeParameter.Id)}");
                 }
 
-                if((method.Exceptions?.Length ?? 0) != 0)
+                if ((method.Exceptions?.Length ?? 0) != 0)
                 {
                     str.AppendLine();
                     str.AppendLine("##### Exceptions");
@@ -460,6 +477,7 @@ class Item
     public string[]? Implements { get; set; }
 
     public string[] ExtensionMethods { get; set; }
+
     // modifiers.csharp
     // modifiers.vb
     public ThrowsException[]? Exceptions { get; set; }
