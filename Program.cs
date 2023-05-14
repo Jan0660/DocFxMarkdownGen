@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Log73;
@@ -78,6 +79,17 @@ await Parallel.ForEachAsync(items, async (item, _) =>
 #endregion
 
 // util methods
+static string GetTypePathPart(string type)
+    => type switch
+    {
+        "Class" => "Classes",
+        "Struct" => "Structs",
+        "Interface" => "Interfaces",
+        "Enum" => "Enums",
+        "Delegate" => "Delegates",
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type, null),
+    };
+
 Item[] GetProperties(string uid)
     => items.Where(i => i.Parent == uid && i.Type == "Property").ToArray();
 
@@ -90,59 +102,11 @@ Item[] GetMethods(string uid)
 Item[] GetEvents(string uid)
     => items.Where(i => i.Parent == uid && i.Type == "Event").ToArray();
 
-string Link(string uid, bool nameOnly = false, bool indexLink = false)
-{
-    var reference = items.FirstOrDefault(i => i.Uid == uid);
-    if (uid.Contains('{') && reference == null)
-    {
-        // try to resolve single type argument references
-        var replaced = uid.Replace(uid[uid.IndexOf('{')..(uid.LastIndexOf('}') + 1)], "`1");
-        reference = items.FirstOrDefault(i => i.Uid == replaced);
-    }
-
-    if (reference == null)
-        // todo: try to resolve to msdn links if System namespace maybe
-        return $"`{uid.Replace('{', '<').Replace('}', '>')}`";
-    var name = nameOnly ? reference.Name : reference.FullName;
-    var dots = indexLink ? "./" : "../";
-    var extension = indexLink ? ".md" : "";
-    if (reference.Type is "Class" or "Interface" or "Enum" or "Struct" or "Delegate")
-        return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Namespace}/{reference.Name}{extension}")})";
-    else if (reference.Type is "Namespace")
-        return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Name}/{reference.Name}{extension}")})";
-    else
-    {
-        var parent = items.FirstOrDefault(i => i.Uid == reference.Parent);
-        if (parent == null)
-            return $"`{uid.Replace('{', '<').Replace('}', '>')}`";
-        return
-            $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Namespace}/{parent.Name}{extension}")}#{reference.Name.ToLower().Replace("(", "").Replace(")", "").Replace("?", "")})";
-    }
-}
-
-string? GetSummary(string? summary)
-{
-    if (summary == null)
-        return null;
-    summary = xrefRegex.Replace(summary, match =>
-    {
-        var uid = match.Groups[1].Value;
-        return Link(uid);
-    });
-    summary = langwordXrefRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
-    summary = codeBlockRegex.Replace(summary, match => $"```csharp\n{match.Groups[1].Value.Trim()}\n```");
-    summary = codeRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
-    summary = linkRegex.Replace(summary, match => $"[{match.Groups[2].Value}]({match.Groups[1].Value})");
-
-    return HtmlEscape(summary);
-}
-
 string? HtmlEscape(string? str)
     => str?.Replace("<", "&lt;")?.Replace(">", "&gt;");
 
 string? FileEscape(string? str)
     => str?.Replace("<", "`")?.Replace(">", "`");
-
 
 string SourceLink(Item item)
     => item.Source?.Remote == null
@@ -158,22 +122,102 @@ void Declaration(StringBuilder str, Item item)
 }
 
 Info("Generating and writing markdown...");
+
+// if grouping types, count types in each namespace, for minCount
+// we have to make it a local method like this because of the ref there(cannot be in async method)
+static void DoTypeCounts(List<Item> items, Dictionary<string, int> typeCounts)
+{
+    foreach (var item in items)
+    {
+        if (item.Type is not ("Class" or "Interface" or "Enum" or "Struct" or "Delegate")) continue;
+        ref var count = ref CollectionsMarshal.GetValueRefOrAddDefault(typeCounts, item.Namespace, out var exists);
+        if (exists)
+            count++;
+        else
+            count = 1;
+    }
+}
+
+Dictionary<string, int>? typeCounts = null;
+if (config.TypesGrouping?.Enabled ?? false)
+{
+    typeCounts = new();
+    DoTypeCounts(items, typeCounts);
+}
+
+bool NamespaceHasTypeGrouping(string @namespace)
+    => typeCounts is not null && typeCounts.TryGetValue(@namespace, out var count) &&
+       count >= config.TypesGrouping!.MinCount;
+
+string Link(string uid, bool linkFromGroupedType, bool nameOnly = false, bool linkFromIndex = false)
+{
+    var reference = items.FirstOrDefault(i => i.Uid == uid);
+    if (uid.Contains('{') && reference == null)
+    {
+        // try to resolve single type argument references
+        var replaced = uid.Replace(uid[uid.IndexOf('{')..(uid.LastIndexOf('}') + 1)], "`1");
+        reference = items.FirstOrDefault(i => i.Uid == replaced);
+    }
+
+    if (reference == null)
+        // todo: try to resolve to msdn links if System namespace maybe
+        return $"`{uid.Replace('{', '<').Replace('}', '>')}`";
+    var name = nameOnly ? reference.Name : reference.FullName;
+    var dots = linkFromIndex ? "./" : linkFromGroupedType ? "../../" : "../";
+    var extension = linkFromIndex ? ".md" : "";
+    if (reference.Type is "Class" or "Interface" or "Enum" or "Struct" or "Delegate")
+    {
+        if (NamespaceHasTypeGrouping(reference.Namespace))
+            return
+                $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Namespace}/{GetTypePathPart(reference.Type)}/{reference.Name}{extension}")})";
+        return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Namespace}/{reference.Name}{extension}")})";
+    }
+    else if (reference.Type is "Namespace")
+        return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Name}/{reference.Name}{extension}")})";
+    else
+    {
+        var parent = items.FirstOrDefault(i => i.Uid == reference.Parent);
+        if (parent == null)
+            return $"`{uid.Replace('{', '<').Replace('}', '>')}`";
+        return
+            $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Namespace}{(NamespaceHasTypeGrouping(parent.Namespace) ? $"/{GetTypePathPart(parent.Type)}" : "")}/{parent.Name}{extension}")}#{reference.Name.ToLower().Replace("(", "").Replace(")", "").Replace("?", "")})";
+    }
+}
+
+string? GetSummary(string? summary, bool linkFromGroupedType)
+{
+    if (summary == null)
+        return null;
+    summary = xrefRegex.Replace(summary, match =>
+    {
+        var uid = match.Groups[1].Value;
+        return Link(uid, linkFromGroupedType);
+    });
+    summary = langwordXrefRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
+    summary = codeBlockRegex.Replace(summary, match => $"```csharp\n{match.Groups[1].Value.Trim()}\n```");
+    summary = codeRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
+    summary = linkRegex.Replace(summary, match => $"[{match.Groups[2].Value}]({match.Groups[1].Value})");
+
+    return HtmlEscape(summary);
+}
+
 stopwatch.Restart();
 // create type files finally
 await Parallel.ForEachAsync(items, async (item, _) =>
 {
     if (item.CommentId.StartsWith("T:"))
     {
+        var isGroupedType = typeCounts != null && typeCounts[item.Namespace] >= config.TypesGrouping!.MinCount;
         var str = new StringBuilder();
         str.AppendLine("---");
         str.AppendLine("title: " + item.Type + " " + item.Name);
         str.AppendLine("sidebar_label: " + item.Name);
         if (item.Summary != null)
             // todo: run a regex replace to get rid of hyperlinks and inline code blocks?
-            str.AppendLine($"description: \"{GetSummary(item.Summary)?.Trim().Replace("\"", "\\\"")}\"");
+            str.AppendLine($"description: \"{GetSummary(item.Summary, isGroupedType)?.Trim().Replace("\"", "\\\"")}\"");
         str.AppendLine("---");
         str.AppendLine($"# {item.Type} {HtmlEscape(item.Name)}");
-        str.AppendLine(GetSummary(item.Summary)?.Trim());
+        str.AppendLine(GetSummary(item.Summary, isGroupedType)?.Trim());
         str.AppendLine();
         str.AppendLine($"###### **Assembly**: {item.Assemblies[0]}.dll");
         Declaration(str, item);
@@ -183,7 +227,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
             str.Append("**Inheritance:** ");
             for (int i = 0; i < item.Inheritance.Length; i++)
             {
-                str.Append(Link(item.Inheritance[i]));
+                str.Append(Link(item.Inheritance[i], isGroupedType));
                 if (i != item.Inheritance.Length - 1)
                     str.Append(" -> ");
             }
@@ -199,7 +243,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
 
             for (var i = 0; i < item.DerivedClasses.Length; i++)
             {
-                str.Append(Link(item.DerivedClasses[i]));
+                str.Append(Link(item.DerivedClasses[i], isGroupedType));
                 if (i != item.DerivedClasses.Length - 1)
                     str.Append(", ");
             }
@@ -217,7 +261,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
 
             for (var i = 0; i < item.Implements.Length; i++)
             {
-                str.Append(Link(item.Implements[i]));
+                str.Append(Link(item.Implements[i], isGroupedType));
                 if (i != item.Implements.Length - 1)
                     str.Append(", ");
             }
@@ -235,7 +279,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
             foreach (var property in properties)
             {
                 str.AppendLine($"### {property.Name}");
-                str.AppendLine(GetSummary(property.Summary)?.Trim());
+                str.AppendLine(GetSummary(property.Summary, isGroupedType)?.Trim());
                 Declaration(str, property);
             }
         }
@@ -248,7 +292,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
             foreach (var field in fields)
             {
                 str.AppendLine($"### {field.Name}");
-                str.AppendLine(GetSummary(field.Summary)?.Trim());
+                str.AppendLine(GetSummary(field.Summary, isGroupedType)?.Trim());
                 Declaration(str, field);
             }
         }
@@ -261,18 +305,18 @@ await Parallel.ForEachAsync(items, async (item, _) =>
             foreach (var method in methods)
             {
                 str.AppendLine($"### {HtmlEscape(method.Name)}");
-                str.AppendLine(GetSummary(method.Summary)?.Trim());
+                str.AppendLine(GetSummary(method.Summary, isGroupedType)?.Trim());
                 Declaration(str, method);
                 if (!string.IsNullOrWhiteSpace(method.Syntax.Return?.Type))
                 {
                     str.AppendLine();
                     str.AppendLine("##### Returns");
                     str.AppendLine();
-                    str.Append(Link(method.Syntax.Return.Type)?.Trim());
+                    str.Append(Link(method.Syntax.Return.Type, isGroupedType)?.Trim());
                     if (string.IsNullOrWhiteSpace(method.Syntax.Return?.Description))
                         str.AppendLine();
                     else
-                        str.Append(": " + GetSummary(method.Syntax.Return.Description));
+                        str.Append(": " + GetSummary(method.Syntax.Return.Description, isGroupedType));
                 }
 
                 if ((method.Syntax.Parameters?.Length ?? 0) != 0)
@@ -286,7 +330,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                         str.AppendLine("|:--- |:--- |:--- |");
                         foreach (var parameter in method.Syntax.Parameters)
                             str.AppendLine(
-                                $"| {Link(parameter.Type)} | *{parameter.Id}* | {GetSummary(parameter.Description)} |");
+                                $"| {Link(parameter.Type, isGroupedType)} | *{parameter.Id}* | {GetSummary(parameter.Description, isGroupedType)} |");
                     }
                     else
                     {
@@ -294,7 +338,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                         str.AppendLine("|:--- |:--- |");
                         foreach (var parameter in method.Syntax.Parameters)
                             str.AppendLine(
-                                $"| {Link(parameter.Type)} | *{parameter.Id}* |");
+                                $"| {Link(parameter.Type, isGroupedType)} | *{parameter.Id}* |");
                     }
 
                     str.AppendLine();
@@ -308,11 +352,12 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                         str.AppendLine("| Name | Description |");
                         str.AppendLine("|:--- |:--- |");
                         foreach (var typeParameter in method.Syntax.TypeParameters)
-                            str.AppendLine($"| {Link(typeParameter.Id)} | {typeParameter.Description} |");
+                            str.AppendLine(
+                                $"| {Link(typeParameter.Id, isGroupedType)} | {typeParameter.Description} |");
                     }
                     else
                         foreach (var typeParameter in method.Syntax.TypeParameters)
-                            str.AppendLine($"* {Link(typeParameter.Id)}");
+                            str.AppendLine($"* {Link(typeParameter.Id, isGroupedType)}");
                 }
 
                 if ((method.Exceptions?.Length ?? 0) != 0)
@@ -324,8 +369,8 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                     {
                         // those two spaces are there so that we can have a line break without too much spacing
                         // before the next line
-                        str.AppendLine($"{Link(exception.Type)}  ");
-                        str.AppendLine(GetSummary(exception.Description)?.Trim());
+                        str.AppendLine($"{Link(exception.Type, isGroupedType)}  ");
+                        str.AppendLine(GetSummary(exception.Description, isGroupedType)?.Trim());
                     }
                 }
             }
@@ -339,13 +384,14 @@ await Parallel.ForEachAsync(items, async (item, _) =>
             foreach (var @event in events)
             {
                 str.AppendLine($"### {HtmlEscape(@event.Name)}");
-                str.AppendLine(GetSummary(@event.Summary)?.Trim());
+                str.AppendLine(GetSummary(@event.Summary, isGroupedType)?.Trim());
                 Declaration(str, @event);
                 str.AppendLine("##### Event Type");
                 if (@event.Syntax.Return.Description == null)
-                    str.AppendLine(Link(@event.Syntax.Return.Type)?.Trim());
+                    str.AppendLine(Link(@event.Syntax.Return.Type, isGroupedType)?.Trim());
                 else
-                    str.AppendLine(Link(@event.Syntax.Return.Type)?.Trim() + ": " + @event.Syntax.Return.Description);
+                    str.AppendLine(Link(@event.Syntax.Return.Type, isGroupedType)?.Trim() + ": " +
+                                   @event.Syntax.Return.Description);
             }
         }
 
@@ -357,10 +403,9 @@ await Parallel.ForEachAsync(items, async (item, _) =>
             str.AppendLine();
             foreach (var implemented in item.Implements)
             {
-                str.AppendLine($"* {Link(implemented)}");
+                str.AppendLine($"* {Link(implemented, isGroupedType)}");
             }
         }
-
 
         // Extension methods
         if ((item.ExtensionMethods?.Length ?? 0) != 0)
@@ -380,13 +425,19 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 if (method == null)
                     str.AppendLine($"* {extMethod}");
                 else
-                    str.AppendLine($"* {Link(method.Uid)}");
+                    str.AppendLine($"* {Link(method.Uid, isGroupedType)}");
             }
         }
 
-        await File.WriteAllTextAsync(
-            Path.Join(config.OutputPath, item.Namespace, item.Name.Replace('<', '`').Replace('>', '`')) + ".md",
-            str.ToString());
+        var path = !isGroupedType
+            ? Path.Join(config.OutputPath, item.Namespace, item.Name.Replace('<', '`').Replace('>', '`')) + ".md"
+            : Path.Join(config.OutputPath, item.Namespace, GetTypePathPart(item.Type),
+                item.Name.Replace('<', '`').Replace('>', '`')) + ".md";
+
+        // create directory if it doesn't exist
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+        await File.WriteAllTextAsync(path, str.ToString());
     }
     else if (item.Type == "Namespace")
     {
@@ -405,8 +456,8 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 str.AppendLine($"## {header}");
                 foreach (var item1 in @where.OrderBy(i => i.Name))
                 {
-                    str.AppendLine($"### {HtmlEscape(Link(item1.Uid, true))}");
-                    str.AppendLine(GetSummary(item1.Summary)?.Trim());
+                    str.AppendLine($"### {HtmlEscape(Link(item1.Uid, false, nameOnly: true))}");
+                    str.AppendLine(GetSummary(item1.Summary, false)?.Trim());
                 }
             }
         }
@@ -415,6 +466,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
         Do("Struct", "Structs");
         Do("Interface", "Interfaces");
         Do("Enum", "Enums");
+        Do("Delegate", "Delegates");
 
         await File.WriteAllTextAsync(Path.Join(config.OutputPath, item.Name, $"{item.Name}.md"), str.ToString());
     }
@@ -431,7 +483,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
     str.AppendLine("# API Index");
     str.AppendLine("## Namespaces");
     foreach (var @namespace in items.Where(i => i.Type == "Namespace").OrderBy(i => i.Name))
-        str.AppendLine($"* {HtmlEscape(Link(@namespace.Uid, indexLink: true))}");
+        str.AppendLine($"* {HtmlEscape(Link(@namespace.Uid, false, linkFromIndex: true))}");
     str.AppendLine();
     str.AppendLine("---");
     str.AppendLine(
@@ -538,4 +590,11 @@ class Config
     public string YamlPath { get; set; }
     public string OutputPath { get; set; }
     public string IndexSlug { get; set; }
+    public ConfigTypesGrouping? TypesGrouping { get; set; }
+}
+
+public class ConfigTypesGrouping
+{
+    public bool Enabled { get; set; }
+    public int MinCount { get; set; } = 12;
 }
