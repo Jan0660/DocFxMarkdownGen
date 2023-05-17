@@ -207,6 +207,18 @@ stopwatch.Restart();
 // create type files finally
 await Parallel.ForEachAsync(items, async (item, _) =>
 {
+    // for global namespace?
+    // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+    if (item.CommentId == null)
+    {
+        if (item.Type == "Namespace")
+            return;
+        // ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
+        // ReSharper disable once NullCoalescingConditionIsAlwaysNotNullAccordingToAPIContract
+        Warn($"Missing commentId for {item.Uid ?? item.Id ?? "(can't get uid or id)"}");
+        return;
+    }
+
     if (item.CommentId.StartsWith("T:"))
     {
         var isGroupedType = typeCounts != null && typeCounts[item.Namespace] >= config.TypesGrouping!.MinCount;
