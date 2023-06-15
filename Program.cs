@@ -26,6 +26,7 @@ var langwordXrefRegex =
 var codeBlockRegex = new Regex("<pre><code class=\"lang-csharp\">((.|\n)+?)</code></pre>", RegexOptions.Compiled);
 var codeRegex = new Regex("<code>(.+?)</code>", RegexOptions.Compiled);
 var linkRegex = new Regex("<a href=\"(.+?)\">(.+?)</a>", RegexOptions.Compiled);
+var brRegex = new Regex("<br */?>", RegexOptions.Compiled);
 var yamlDeserializer = new DeserializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance)
     .IgnoreUnmatchedProperties().Build();
 var config =
@@ -199,6 +200,9 @@ string? GetSummary(string? summary, bool linkFromGroupedType)
     summary = codeBlockRegex.Replace(summary, match => $"```csharp\n{match.Groups[1].Value.Trim()}\n```");
     summary = codeRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
     summary = linkRegex.Replace(summary, match => $"[{match.Groups[2].Value}]({match.Groups[1].Value})");
+    summary = brRegex.Replace(summary, _ => config.BrNewline);
+    if (config.ForceNewline)
+        summary = summary.Replace("\n", config.ForcedNewline);
 
     return HtmlEscape(summary);
 }
@@ -605,6 +609,9 @@ class Config
     public string OutputPath { get; set; }
     public string IndexSlug { get; set; } = "/api";
     public ConfigTypesGrouping? TypesGrouping { get; set; }
+    public string BrNewline { get; set; } = "\n\n";
+    public bool ForceNewline { get; set; } = false;
+    public string ForcedNewline { get; set; } = "  \n";
 }
 
 public class ConfigTypesGrouping

@@ -41,6 +41,20 @@ typesGrouping:
 If type grouping is enabled, types in namespaces with a number of types greater than or equal to `minCount` will be
 grouped by `Class`, `Struct`, `Interface`, `Enum` and `Delegate` in the sidebar.
 
+### Newlines
+
+Example:
+
+```yaml
+# ...
+#brNewline: "  \n" # default is "\n\n"
+#forceNewline: true # default is false
+#forcedNewline: "  \n" # default is "  \n"
+```
+
+- `brNewline` is the string that will be used to replace `<br/>` tags in the generated markdown.
+- `forceNewline` if true, will replace all newlines(`\n`) with `forcedNewline`.
+
 ## Example sites
 
 - [RCaron](https://rcaron.jan0660.dev/api)
