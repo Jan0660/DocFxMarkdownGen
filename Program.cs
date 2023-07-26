@@ -106,7 +106,7 @@ string? HtmlEscape(string? str)
     => str?.Replace("<", "&lt;").Replace(">", "&gt;");
 
 string? FileEscape(string? str)
-    => str?.Replace("<", "`").Replace(">", "`");
+    => str?.Replace("<", "`").Replace(">", "`").Replace(" ", "%20");
 
 string SourceLink(Item item)
     => item.Source?.Remote == null
