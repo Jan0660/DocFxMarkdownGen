@@ -26,6 +26,7 @@ yamlPath: /home/jan/gen/api
   where your `docfx.json` file is. Can be overriden with the `DFMG_YAML_PATH` environment variable.
 - `indexSlug` is the slug of the index page, defaults to `/api`.
 - `typesGrouping` read below.
+- `rewriteInterlinks` set this to `true` if encountering issues with links when building the site.
 
 ### Types grouping
 
