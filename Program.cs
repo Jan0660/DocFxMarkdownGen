@@ -176,7 +176,20 @@ string Link(string uid, bool linkFromGroupedType, bool nameOnly = false, bool li
         return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Namespace}/{reference.Name}{extension}")})";
     }
     else if (reference.Type is "Namespace")
+    {
+        if (config.RewriteInterlinks)
+        {
+            if (linkFromIndex)
+            {
+                return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Name}/{reference.Name}{extension}")})";
+            }
+            else
+            {
+                return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Name}")})";
+            }
+        }
         return $"[{HtmlEscape(name)}]({FileEscape($"{dots}{reference.Name}/{reference.Name}{extension}")})";
+    }
     else
     {
         var parent = items.FirstOrDefault(i => i.Uid == reference.Parent);
@@ -612,6 +625,7 @@ class Config
     public string BrNewline { get; set; } = "\n\n";
     public bool ForceNewline { get; set; } = false;
     public string ForcedNewline { get; set; } = "  \n";
+    public bool RewriteInterlinks { get; set; } = false;
 }
 
 public class ConfigTypesGrouping
