@@ -270,7 +270,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
         {
             str.AppendLine("**Derived:**  ");
             if (item.DerivedClasses.Length > 8)
-                str.AppendLine("\n<details><summary>Expand</summary>\n");
+                str.AppendLine("\n<details>\n<summary>Expand</summary>\n");
 
             for (var i = 0; i < item.DerivedClasses.Length; i++)
             {
@@ -288,7 +288,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
         {
             str.AppendLine("**Implements:**  ");
             if (item.Implements.Length > 8)
-                str.AppendLine("\n<details><summary>Expand</summary>\n");
+                str.AppendLine("\n<details>\n<summary>Expand</summary>\n");
 
             for (var i = 0; i < item.Implements.Length; i++)
             {
@@ -454,7 +454,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                            extMethod)
                         : false));
                 if (method == null)
-                    str.AppendLine($"* {extMethod}");
+                    str.AppendLine($"* {extMethod.replace("{", "&#123;").replace("}", "&#125;")}");
                 else
                     str.AppendLine($"* {Link(method.Uid, isGroupedType)}");
             }
