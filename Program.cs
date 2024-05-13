@@ -454,7 +454,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                            extMethod)
                         : false));
                 if (method == null)
-                    str.AppendLine($"* {extMethod.replace("{", "&#123;").replace("}", "&#125;")}");
+                    str.AppendLine($"* {extMethod.Replace("{", "&#123;").Replace("}", "&#125;")}");
                 else
                     str.AppendLine($"* {Link(method.Uid, isGroupedType)}");
             }
