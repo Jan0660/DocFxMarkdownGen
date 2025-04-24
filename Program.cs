@@ -24,7 +24,7 @@ WriteLine($"DocFxMarkdownGen v{versionString} running...");
 var xrefRegex = new Regex("<xref href=\"(.+?)\" data-throw-if-not-resolved=\"false\"></xref>", RegexOptions.Compiled);
 var langwordXrefRegex =
     new Regex("<xref uid=\"langword_csharp_.+?\" name=\"(.+?)\" href=\"\"></xref>", RegexOptions.Compiled);
-var codeBlockRegex = new Regex("<pre><code class=\"lang-csharp\">((.|\n)+?)</code></pre>", RegexOptions.Compiled);
+var codeBlockRegex = new Regex("<pre><code class=\"lang-([a-zA-Z0-9]+)\">((.|\n)+?)</code></pre>", RegexOptions.Compiled);
 var markdownCodeBlockRegex = new Regex(@"```(\w+)\n(.*?)\n```", RegexOptions.Compiled | RegexOptions.Singleline);
 var codeRegex = new Regex("<code>(.+?)</code>", RegexOptions.Compiled);
 var linkRegex = new Regex("<a href=\"(.+?)\">(.+?)</a>", RegexOptions.Compiled);
@@ -212,7 +212,7 @@ string? GetSummary(string? summary, bool linkFromGroupedType)
         return Link(uid, linkFromGroupedType);
     });
     summary = langwordXrefRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
-    summary = codeBlockRegex.Replace(summary, match => $"```csharp\n{match.Groups[1].Value.Trim()}\n```");
+    summary = codeBlockRegex.Replace(summary, match => $"```{match.Groups[1].Value.Trim()}\n{match.Groups[2].Value.Trim()}\n```");
     summary = codeRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
     summary = linkRegex.Replace(summary, match => $"[{match.Groups[2].Value}]({match.Groups[1].Value})");
     summary = brRegex.Replace(summary, _ => config.BrNewline);
