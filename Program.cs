@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -24,6 +25,7 @@ var xrefRegex = new Regex("<xref href=\"(.+?)\" data-throw-if-not-resolved=\"fal
 var langwordXrefRegex =
     new Regex("<xref uid=\"langword_csharp_.+?\" name=\"(.+?)\" href=\"\"></xref>", RegexOptions.Compiled);
 var codeBlockRegex = new Regex("<pre><code class=\"lang-([a-zA-Z0-9]+)\">((.|\n)+?)</code></pre>", RegexOptions.Compiled);
+var markdownCodeBlockRegex = new Regex(@"```(\w+)\n(.*?)\n```", RegexOptions.Compiled | RegexOptions.Singleline);
 var codeRegex = new Regex("<code>(.+?)</code>", RegexOptions.Compiled);
 var linkRegex = new Regex("<a href=\"(.+?)\">(.+?)</a>", RegexOptions.Compiled);
 var brRegex = new Regex("<br */?>", RegexOptions.Compiled);
@@ -217,7 +219,13 @@ string? GetSummary(string? summary, bool linkFromGroupedType)
     if (config.ForceNewline)
         summary = summary.Replace("\n", config.ForcedNewline);
 
-    return HtmlEscape(summary);
+    summary = HtmlEscape(summary);
+    
+    if (config.UnescapeCodeBlocks)
+        summary = markdownCodeBlockRegex.Replace(summary!,
+            match => $"```{match.Groups[1].Value.Trim()}\n{WebUtility.HtmlDecode(match.Groups[2].Value.Trim())}\n```");
+    
+    return summary;
 }
 
 stopwatch.Restart();
@@ -626,6 +634,7 @@ class Config
     public bool ForceNewline { get; set; } = false;
     public string ForcedNewline { get; set; } = "  \n";
     public bool RewriteInterlinks { get; set; } = false;
+    public bool UnescapeCodeBlocks { get; set; } = false;
 }
 
 public class ConfigTypesGrouping
