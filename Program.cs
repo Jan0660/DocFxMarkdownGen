@@ -166,7 +166,7 @@ string Link(string uid, bool linkFromGroupedType, bool nameOnly = false, bool li
 
     if (reference == null)
         // todo: try to resolve to msdn links if System namespace maybe
-        return $"`{uid.Replace('{', '<').Replace('}', '>')}`";
+        return $"`{WebUtility.UrlDecode(uid).Replace('{', '<').Replace('}', '>')}`";
     var name = nameOnly ? reference.Name : reference.FullName;
     var filename = config.UseUidFilename ? reference.Uid : reference.Name;
     var dots = linkFromIndex ? "./" : linkFromGroupedType ? "../../" : "../";
