@@ -29,6 +29,9 @@ var markdownCodeBlockRegex = new Regex(@"```(\w+)\n(.*?)\n```", RegexOptions.Com
 var codeRegex = new Regex("<code>(.+?)</code>", RegexOptions.Compiled);
 var linkRegex = new Regex("<a href=\"(.+?)\">(.+?)</a>", RegexOptions.Compiled);
 var brRegex = new Regex("<br */?>", RegexOptions.Compiled);
+var emRegex = new Regex("<(?:em|i)>(.*?)</(?:em|i)>", RegexOptions.Compiled | RegexOptions.Singleline);
+var strongRegex = new Regex("<(?:strong|b)>(.*?)</(?:strong|b)>", RegexOptions.Compiled | RegexOptions.Singleline);
+var paraRegex = new Regex("<para>(.*?)</para>", RegexOptions.Compiled | RegexOptions.Singleline);
 var yamlDeserializer = new DeserializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance)
     .IgnoreUnmatchedProperties().Build();
 var config =
@@ -217,6 +220,9 @@ string? GetSummary(string? summary, bool linkFromGroupedType)
     summary = codeRegex.Replace(summary, match => $"`{match.Groups[1].Value}`");
     summary = linkRegex.Replace(summary, match => $"[{match.Groups[2].Value}]({match.Groups[1].Value})");
     summary = brRegex.Replace(summary, _ => config.BrNewline);
+    summary = emRegex.Replace(summary, match => $"*{match.Groups[1].Value}*");
+    summary = strongRegex.Replace(summary, match => $"**{match.Groups[1].Value}**");
+    summary = paraRegex.Replace(summary, match => $"\n\n{match.Groups[1].Value}\n\n");
     if (config.ForceNewline)
         summary = summary.Replace("\n", config.ForcedNewline);
 
