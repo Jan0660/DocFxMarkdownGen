@@ -115,6 +115,35 @@ string SourceLink(Item item)
         ? ""
         : $"###### [View Source]({item.Source.Remote.Repo}/blob/{item.Source.Remote.Branch}/{item.Source.Remote.Path}#L{item.Source.StartLine + 1})";
 
+void AppendRemarks(StringBuilder str, Item item, bool linkFromGroupedType)
+{
+    if (!string.IsNullOrWhiteSpace(item.Remarks))
+    {
+        str.AppendLine();
+        str.AppendLine("##### Remarks");
+        str.AppendLine();
+        str.AppendLine(GetSummary(item.Remarks, linkFromGroupedType)?.Trim());
+    }
+
+    if (item.Example is { Length: > 0 })
+    {
+        str.AppendLine();
+        str.AppendLine("##### Examples");
+        str.AppendLine();
+        foreach (var example in item.Example)
+            str.AppendLine(GetSummary(example, linkFromGroupedType)?.Trim());
+    }
+
+    if (item.Seealso is { Length: > 0 })
+    {
+        str.AppendLine();
+        str.AppendLine("##### See Also");
+        str.AppendLine();
+        foreach (var seeAlso in item.Seealso)
+            str.AppendLine($"* {Link(seeAlso.LinkId, linkFromGroupedType)}");
+    }
+}
+
 void Declaration(StringBuilder str, Item item)
 {
     str.AppendLine(SourceLink(item));
@@ -258,6 +287,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
         str.AppendLine("---");
         str.AppendLine($"# {item.Type} {HtmlEscape(item.Name)}");
         str.AppendLine(GetSummary(item.Summary, isGroupedType)?.Trim());
+        AppendRemarks(str, item, isGroupedType);
         str.AppendLine();
         str.AppendLine($"###### **Assembly**: {item.Assemblies[0]}.dll");
         Declaration(str, item);
@@ -321,6 +351,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 str.AppendLine($"### {property.Name}");
                 str.AppendLine(GetSummary(property.Summary, isGroupedType)?.Trim());
                 Declaration(str, property);
+                AppendRemarks(str, property, isGroupedType);
             }
         }
 
@@ -334,6 +365,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 str.AppendLine($"### {field.Name}");
                 str.AppendLine(GetSummary(field.Summary, isGroupedType)?.Trim());
                 Declaration(str, field);
+                AppendRemarks(str, field, isGroupedType);
             }
         }
 
@@ -413,6 +445,8 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                         str.AppendLine(GetSummary(exception.Description, isGroupedType)?.Trim());
                     }
                 }
+
+                AppendRemarks(str, method, isGroupedType);
             }
         }
 
@@ -432,6 +466,7 @@ await Parallel.ForEachAsync(items, async (item, _) =>
                 else
                     str.AppendLine(Link(@event.Syntax.Return.Type, isGroupedType).Trim() + ": " +
                                    @event.Syntax.Return.Description);
+                AppendRemarks(str, @event, isGroupedType);
             }
         }
 
@@ -561,6 +596,9 @@ class Item
 
     // todo: trim when loading instead of when usig gnfgnrjfuijik
     public string? Summary { get; set; }
+    public string? Remarks { get; set; }
+    public string[]? Example { get; set; }
+    public SeeAlso[]? Seealso { get; set; }
 
     // todo: example
     public Syntax? Syntax { get; set; }
@@ -581,6 +619,12 @@ class ThrowsException
     public string Type { get; set; }
     public string CommentId { get; set; }
     public string Description { get; set; }
+}
+
+class SeeAlso
+{
+    public string LinkId { get; set; }
+    public string CommentId { get; set; }
 }
 
 class Syntax
